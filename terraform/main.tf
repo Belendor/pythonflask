@@ -57,14 +57,33 @@ resource "aws_key_pair" "generated_key" {
   public_key = tls_private_key.example.public_key_openssh
 }
 
+data "aws_ami" "ubuntu" {
+
+  most_recent = true
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"]
+}
+
 resource "aws_instance" "docker" {
   count = var.ec2_count_docker
 
-  ami                    = var.ec2_ami
+  ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.ec2_type_docker
   key_name               = aws_key_pair.generated_key.key_name
   subnet_id              = module.vpc.public_subnets[count.index % length(module.vpc.public_subnets)]
   vpc_security_group_ids = [aws_security_group.my-sg.id]
+  user_data = templatefile("${path.module}/script.sh", {
+    var = "var value"
+  })
 
   tags = {
     Name = "EC2 for Docker Container"
@@ -73,6 +92,6 @@ resource "aws_instance" "docker" {
 
 output "public_ec2_ips" {
   value = [
-    for instance in aws_instance.docker :  join("", ["http://", instance.public_ip])
+    for instance in aws_instance.docker : join("", ["http://", instance.public_ip])
   ]
 }
